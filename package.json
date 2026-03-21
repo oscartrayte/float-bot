@@ -4,6 +4,9 @@
   "description": "FLOAT® Discord Bot — NES nostalgia community",
   "main": "src/index.js",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node src/index.js",
     "deploy-commands": "node src/deploy-commands.js"
