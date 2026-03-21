@@ -25,7 +25,6 @@ let connection = null;
 let player = null;
 let currentGuild = null;
 let isRestarting = false;
-let currentFfmpeg = null;
 
 function createFFmpegStream() {
   const ffmpeg = spawn(ffmpegPath, [
@@ -33,20 +32,25 @@ function createFFmpegStream() {
     '-reconnect_streamed', '1',
     '-reconnect_delay_max', '5',
     '-i', STREAM_URL,
+    '-analyzeduration', '0',
+    '-loglevel', 'error',
     '-vn',
-    '-acodec', 'libopus',
-    '-f', 'opus',
+    '-f', 's16le',
     '-ar', '48000',
     '-ac', '2',
     'pipe:1',
   ], { stdio: ['ignore', 'pipe', 'pipe'] });
 
-  ffmpeg.on('error', (err) => {
-    console.error('❌ FFmpeg error:', err.message);
-  });
-
   ffmpeg.stderr.on('data', (data) => {
     console.error('🎬 FFmpeg stderr:', data.toString().trim());
+  });
+
+  ffmpeg.on('error', (err) => {
+    console.error('❌ FFmpeg spawn error:', err.message);
+  });
+
+  ffmpeg.on('close', (code) => {
+    console.log(`🎬 FFmpeg exited with code ${code}`);
   });
 
   return { stream: ffmpeg.stdout, ffmpeg };
@@ -55,27 +59,30 @@ function createFFmpegStream() {
 function startPlaying() {
   if (!player) return;
 
-  const { stream, ffmpeg } = createFFmpegStream();
-  currentFfmpeg = ffmpeg;
+  player.removeAllListeners(AudioPlayerStatus.Idle);
+  player.removeAllListeners('error');
 
-  stream.once('data', () => {
-    console.log('✅ FFmpeg stdout is flowing — data received from stream.');
-  });
+  const { stream, ffmpeg } = createFFmpegStream();
 
   const resource = createAudioResource(stream, {
-    inputType: StreamType.OggOpus,
+    inputType: StreamType.Raw,
     inlineVolume: false,
   });
 
-  console.log('✅ Audio resource created, handing to player...');
-
-  console.log('▶️  Calling player.play(resource)...');
   player.play(resource);
 
   player.once(AudioPlayerStatus.Idle, () => {
     if (!isRestarting) {
       console.log('📻 Stream ended, restarting in 3s...');
       ffmpeg.kill();
+      setTimeout(startPlaying, 3000);
+    }
+  });
+
+  player.once('error', (err) => {
+    console.error('❌ Player error:', err.message);
+    ffmpeg.kill();
+    if (!isRestarting) {
       setTimeout(startPlaying, 3000);
     }
   });
@@ -111,15 +118,6 @@ export async function startRadio(guild) {
   }
 
   player = createAudioPlayer();
-
-  player.on('error', (err) => {
-    console.error('❌ Player error:', err.message);
-    if (currentFfmpeg) currentFfmpeg.kill();
-    if (!isRestarting) {
-      setTimeout(startPlaying, 3000);
-    }
-  });
-
   connection.subscribe(player);
 
   connection.on(VoiceConnectionStatus.Disconnected, async () => {
