@@ -4,7 +4,11 @@
 // Only usable by server admins
 // ─────────────────────────────────────────
 
-import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, PermissionFlagsBits } from 'discord.js';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export const data = new SlashCommandBuilder()
   .setName('newsletter')
@@ -59,18 +63,25 @@ export async function execute(interaction) {
     return;
   }
 
+  // Attach the banner image and reference it in the embed
+  const banner = new AttachmentBuilder(
+    join(__dirname, '../assets/newsletter-banner.png'),
+    { name: 'newsletter-banner.png' }
+  );
+
   const embed = new EmbedBuilder()
     .setColor(0xE8A020)
     .setTitle(`📺 FLOAT® · ${issue}`)
+    .setImage('attachment://newsletter-banner.png')
     .setDescription(`*${headline}*\n\n─────────────────────────\n\n${body}`)
-    .setFooter({ text: 'FLOAT® · NES nostalgia community' })
+    .setFooter({ text: 'FLOAT® · Virtual Nostalgia Inc.' })
     .setTimestamp();
 
   if (sectionTitle && sectionBody) {
     embed.addFields({ name: `🕹️ ${sectionTitle}`, value: sectionBody });
   }
 
-  await channel.send({ embeds: [embed] });
+  await channel.send({ embeds: [embed], files: [banner] });
 
   await interaction.reply({
     content: `✅ Newsletter posted to <#${channelId}>`,

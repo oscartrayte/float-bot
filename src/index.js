@@ -8,6 +8,7 @@ import { Client, GatewayIntentBits, Events } from 'discord.js';
 import { handleNewMember } from './events/guildMemberAdd.js';
 import { handleInteraction } from './interactions/index.js';
 import { startRadio } from './radio.js';
+import { startNowPlaying } from './nowPlaying.js';
 
 const client = new Client({
   intents: [
@@ -26,6 +27,7 @@ client.once(Events.ClientReady, async (c) => {
   const guild = c.guilds.cache.get(process.env.GUILD_ID);
   if (guild) {
     await startRadio(guild);
+    await startNowPlaying(c);
   } else {
     console.warn('⚠️  Guild not found. Check GUILD_ID in your .env');
   }
