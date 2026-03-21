@@ -39,10 +39,14 @@ function createFFmpegStream() {
     '-ar', '48000',
     '-ac', '2',
     'pipe:1',
-  ], { stdio: ['ignore', 'pipe', 'ignore'] });
+  ], { stdio: ['ignore', 'pipe', 'pipe'] });
 
   ffmpeg.on('error', (err) => {
     console.error('❌ FFmpeg error:', err.message);
+  });
+
+  ffmpeg.stderr.on('data', (data) => {
+    console.error('🎬 FFmpeg stderr:', data.toString().trim());
   });
 
   return { stream: ffmpeg.stdout, ffmpeg };
@@ -54,11 +58,22 @@ function startPlaying() {
   const { stream, ffmpeg } = createFFmpegStream();
   currentFfmpeg = ffmpeg;
 
+  stream.once('data', () => {
+    console.log('✅ FFmpeg stdout is flowing — data received from stream.');
+  });
+
   const resource = createAudioResource(stream, {
     inputType: StreamType.OggOpus,
     inlineVolume: false,
   });
 
+  console.log('✅ Audio resource created, handing to player...');
+
+  resource.on('error', (err) => {
+    console.error('❌ Audio resource error:', err.message);
+  });
+
+  console.log('▶️  Calling player.play(resource)...');
   player.play(resource);
 
   player.once(AudioPlayerStatus.Idle, () => {
