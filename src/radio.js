@@ -11,69 +11,37 @@ import {
   AudioPlayerStatus,
   VoiceConnectionStatus,
   entersState,
-  StreamType,
 } from '@discordjs/voice';
-import { spawn } from 'child_process';
+import ffmpegStatic from 'ffmpeg-static';
+import { createRequire } from 'module';
+
+// Point @discordjs/voice at the bundled ffmpeg binary
+process.env.FFMPEG_PATH = ffmpegStatic;
 
 const STREAM_URL = 'https://s5.radio.co/s253044a7a/listen';
 
 let connection = null;
 let player = null;
-let currentGuild = null;
-let isRestarting = false;
 
-function createFFmpegStream() {
-  const ffmpeg = spawn('ffmpeg', [
-    '-reconnect', '1',
-    '-reconnect_streamed', '1',
-    '-reconnect_delay_max', '5',
-    '-i', STREAM_URL,
-    '-vn',
-    '-acodec', 'libopus',
-    '-f', 'opus',
-    '-ar', '48000',
-    '-ac', '2',
-    'pipe:1',
-  ], { stdio: ['ignore', 'pipe', 'ignore'] });
-
-  ffmpeg.on('error', (err) => {
-    console.error('❌ FFmpeg error:', err.message);
+function createStream() {
+  const resource = createAudioResource(STREAM_URL, {
+    inlineVolume: false,
   });
-
-  return { stream: ffmpeg.stdout, ffmpeg };
+  return resource;
 }
 
 function startPlaying() {
-  if (!player) return;
-
-  const { stream, ffmpeg } = createFFmpegStream();
-
-  const resource = createAudioResource(stream, {
-    inputType: StreamType.OggOpus,
-    inlineVolume: false,
-  });
-
+  const resource = createStream();
   player.play(resource);
 
+  // If the stream ends or idles, restart it automatically
   player.once(AudioPlayerStatus.Idle, () => {
-    if (!isRestarting) {
-      console.log('📻 Stream ended, restarting in 3s...');
-      ffmpeg.kill();
-      setTimeout(startPlaying, 3000);
-    }
-  });
-
-  player.once('error', (err) => {
-    console.error('❌ Player error:', err.message);
-    ffmpeg.kill();
-    if (!isRestarting) {
-      setTimeout(startPlaying, 3000);
-    }
+    console.log('📻 Stream ended, restarting...');
+    setTimeout(startPlaying, 2000);
   });
 }
 
 export async function startRadio(guild) {
-  currentGuild = guild;
   const channelId = process.env.VOICE_CHANNEL_ID;
   const channel = guild.channels.cache.get(channelId);
 
@@ -91,35 +59,33 @@ export async function startRadio(guild) {
     selfDeaf: false,
   });
 
+  // Wait until connected
   try {
     await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
     console.log('✅ Connected to voice channel.');
   } catch (err) {
     console.error('❌ Could not connect to voice channel:', err);
     connection.destroy();
-    setTimeout(() => startRadio(guild), 10_000);
     return;
   }
 
+  // Create and subscribe the audio player
   player = createAudioPlayer();
   connection.subscribe(player);
 
+  // Reconnect if disconnected unexpectedly
   connection.on(VoiceConnectionStatus.Disconnected, async () => {
-    console.warn('⚠️  Disconnected. Attempting to reconnect...');
-    isRestarting = true;
+    console.warn('⚠️  Disconnected from voice. Attempting to reconnect...');
     try {
       await Promise.race([
         entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
         entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
       ]);
-      isRestarting = false;
     } catch {
-      console.error('❌ Reconnect failed. Retrying in 10s...');
+      console.error('❌ Reconnect failed. Destroying connection.');
       connection.destroy();
-      player = null;
-      connection = null;
-      isRestarting = false;
-      setTimeout(() => startRadio(currentGuild), 10_000);
+      // Retry after 10 seconds
+      setTimeout(() => startRadio(guild), 10_000);
     }
   });
 
