@@ -32,17 +32,20 @@ function createFFmpegStream() {
     '-reconnect_streamed', '1',
     '-reconnect_delay_max', '5',
     '-i', STREAM_URL,
-    '-analyzeduration', '0',
     '-loglevel', 'error',
     '-vn',
-    '-f', 's16le',
+    '-acodec', 'libopus',
+    '-b:a', '128k',
+    '-frame_duration', '20',
+    '-application', 'audio',
+    '-f', 'ogg',
     '-ar', '48000',
     '-ac', '2',
     'pipe:1',
   ], { stdio: ['ignore', 'pipe', 'pipe'] });
 
   ffmpeg.stderr.on('data', (data) => {
-    console.error('🎬 FFmpeg stderr:', data.toString().trim());
+    console.error('🎬 FFmpeg:', data.toString().trim());
   });
 
   ffmpeg.on('error', (err) => {
@@ -65,7 +68,7 @@ function startPlaying() {
   const { stream, ffmpeg } = createFFmpegStream();
 
   const resource = createAudioResource(stream, {
-    inputType: StreamType.Raw,
+    inputType: StreamType.OggOpus,
     inlineVolume: false,
   });
 
@@ -74,17 +77,21 @@ function startPlaying() {
   player.once(AudioPlayerStatus.Idle, () => {
     if (!isRestarting) {
       console.log('📻 Stream ended, restarting in 3s...');
-      ffmpeg.kill();
+      ffmpeg.kill('SIGTERM');
       setTimeout(startPlaying, 3000);
     }
   });
 
   player.once('error', (err) => {
     console.error('❌ Player error:', err.message);
-    ffmpeg.kill();
+    ffmpeg.kill('SIGTERM');
     if (!isRestarting) {
       setTimeout(startPlaying, 3000);
     }
+  });
+
+  stream.on('error', (err) => {
+    console.error('❌ Stream error:', err.message);
   });
 }
 
