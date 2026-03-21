@@ -69,10 +69,6 @@ function startPlaying() {
 
   console.log('✅ Audio resource created, handing to player...');
 
-  resource.on('error', (err) => {
-    console.error('❌ Audio resource error:', err.message);
-  });
-
   console.log('▶️  Calling player.play(resource)...');
   player.play(resource);
 
