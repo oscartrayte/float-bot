@@ -25,6 +25,7 @@ let connection = null;
 let player = null;
 let currentGuild = null;
 let isRestarting = false;
+let currentFfmpeg = null;
 
 function createFFmpegStream() {
   const ffmpeg = spawn(ffmpegPath, [
@@ -51,6 +52,7 @@ function startPlaying() {
   if (!player) return;
 
   const { stream, ffmpeg } = createFFmpegStream();
+  currentFfmpeg = ffmpeg;
 
   const resource = createAudioResource(stream, {
     inputType: StreamType.OggOpus,
@@ -63,14 +65,6 @@ function startPlaying() {
     if (!isRestarting) {
       console.log('📻 Stream ended, restarting in 3s...');
       ffmpeg.kill();
-      setTimeout(startPlaying, 3000);
-    }
-  });
-
-  player.once('error', (err) => {
-    console.error('❌ Player error:', err.message);
-    ffmpeg.kill();
-    if (!isRestarting) {
       setTimeout(startPlaying, 3000);
     }
   });
@@ -106,6 +100,15 @@ export async function startRadio(guild) {
   }
 
   player = createAudioPlayer();
+
+  player.on('error', (err) => {
+    console.error('❌ Player error:', err.message);
+    if (currentFfmpeg) currentFfmpeg.kill();
+    if (!isRestarting) {
+      setTimeout(startPlaying, 3000);
+    }
+  });
+
   connection.subscribe(player);
 
   connection.on(VoiceConnectionStatus.Disconnected, async () => {
