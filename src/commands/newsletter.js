@@ -1,56 +1,24 @@
 // ─────────────────────────────────────────
 // FLOAT® — /newsletter command
-// Posts a formatted newsletter update
+// Upload an image and post it in an embed
 // Only usable by server admins
 // ─────────────────────────────────────────
 
-import { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, PermissionFlagsBits } from 'discord.js';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 export const data = new SlashCommandBuilder()
   .setName('newsletter')
-  .setDescription('Post a FLOAT® newsletter update to the newsletter channel')
+  .setDescription('Post a FLOAT® newsletter image to the newsletter channel')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-  .addStringOption((option) =>
+  .addAttachmentOption((option) =>
     option
-      .setName('issue')
-      .setDescription('Issue number or name, e.g. "Issue 01" or "March 2026"')
+      .setName('image')
+      .setDescription('The newsletter image to post')
       .setRequired(true)
-  )
-  .addStringOption((option) =>
-    option
-      .setName('headline')
-      .setDescription('The main headline or intro line for this issue')
-      .setRequired(true)
-  )
-  .addStringOption((option) =>
-    option
-      .setName('body')
-      .setDescription('The main body content of the newsletter (use \\n for line breaks)')
-      .setRequired(true)
-  )
-  .addStringOption((option) =>
-    option
-      .setName('section_title')
-      .setDescription('Optional: title for an extra section (e.g. "This Week in NES")')
-      .setRequired(false)
-  )
-  .addStringOption((option) =>
-    option
-      .setName('section_body')
-      .setDescription('Optional: content for the extra section')
-      .setRequired(false)
   );
 
 export async function execute(interaction) {
-  const issue = interaction.options.getString('issue');
-  const headline = interaction.options.getString('headline');
-  const body = interaction.options.getString('body').replace(/\\n/g, '\n');
-  const sectionTitle = interaction.options.getString('section_title');
-  const sectionBody = interaction.options.getString('section_body');
+  const image = interaction.options.getAttachment('image');
 
   const channelId = process.env.NEWSLETTER_CHANNEL_ID;
   const channel = interaction.guild.channels.cache.get(channelId);
@@ -63,25 +31,11 @@ export async function execute(interaction) {
     return;
   }
 
-  // Attach the banner image and reference it in the embed
-  const banner = new AttachmentBuilder(
-    join(__dirname, '../assets/newsletter-banner.png'),
-    { name: 'newsletter-banner.png' }
-  );
-
   const embed = new EmbedBuilder()
     .setColor(0xE8A020)
-    .setTitle(`📺 FLOAT® · ${issue}`)
-    .setImage('attachment://newsletter-banner.png')
-    .setDescription(`*${headline}*\n\n─────────────────────────\n\n${body}`)
-    .setFooter({ text: 'FLOAT® · Virtual Nostalgia Inc.' })
-    .setTimestamp();
+    .setImage(image.url);
 
-  if (sectionTitle && sectionBody) {
-    embed.addFields({ name: `🕹️ ${sectionTitle}`, value: sectionBody });
-  }
-
-  await channel.send({ embeds: [embed], files: [banner] });
+  await channel.send({ embeds: [embed] });
 
   await interaction.reply({
     content: `✅ Newsletter posted to <#${channelId}>`,

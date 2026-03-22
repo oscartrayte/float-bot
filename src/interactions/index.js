@@ -4,9 +4,11 @@
 // ─────────────────────────────────────────
 
 import * as newsletter from '../commands/newsletter.js';
+import * as welcome from '../commands/welcome.js';
 
 const commands = {
   newsletter,
+  welcome,
 };
 
 export async function handleInteraction(interaction) {

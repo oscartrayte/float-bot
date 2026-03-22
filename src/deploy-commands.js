@@ -7,8 +7,9 @@
 import 'dotenv/config';
 import { REST, Routes } from 'discord.js';
 import * as newsletter from './commands/newsletter.js';
+import * as welcome from './commands/welcome.js';
 
-const commands = [newsletter].map((cmd) => cmd.data.toJSON());
+const commands = [newsletter, welcome].map((cmd) => cmd.data.toJSON());
 
 const rest = new REST().setToken(process.env.DISCORD_TOKEN);
 
